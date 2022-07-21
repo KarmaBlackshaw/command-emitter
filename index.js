@@ -4,6 +4,8 @@ const chalk = require('chalk')
 
 // node core
 const { exec } = require('node:child_process')
+const path = require('path')
+const fs = require('fs')
 
 // config
 require('dotenv').config()
@@ -50,8 +52,18 @@ const publisherListenStdEvents = async () => {
 const listenForCommands = async () => {
   console.log(chalk.cyan('Listening for publisher commands...'))
 
+  let cwd = process.cwd()
   await redis.subscribe(redisPathMaker('command'), command => {
-    exec(command, (error, stdout, stderr) => {
+    if ((/^cd/g).test(command)) {
+      const newCwd = path.join(cwd, command.replace(/cd /gi, ''))
+
+      if (fs.existsSync(newCwd)) {
+        cwd = newCwd
+        return
+      }
+    }
+
+    exec(command, { cwd }, (error, stdout, stderr) => {
       if (error) {
         console.log(`error: ${error.message}`)
         return
