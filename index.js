@@ -58,7 +58,7 @@ const publisherListenStdEvents = async () => {
   })
 
   await redis.subscribe(redisPathMaker('list'), msg => {
-    console.log(chalk.cyan(`- ${msg}`))
+    console.log(chalk.cyan(`listener: ${msg}`))
   })
 }
 
