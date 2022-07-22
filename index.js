@@ -9,19 +9,21 @@ const fs = require('fs')
 
 // config
 require('dotenv').config()
-
-// config
 const redis = require('./config/redis')
 
 // constants
 const CONSTANTS = {
-  stop_command: 'cmd:stop'
+  stop_command: 'cmd:stop',
+  list_command: 'cmd:list'
 }
 
 const redisPathMaker = event => {
   return `server:command-emitter:${process.env.PROJECT_KEY}:${event}`
 }
 
+/**
+ * PUBLISHER
+ */
 const promptCommand = async () => {
   const { command } = await inquirer.prompt({
     type: 'string',
@@ -39,6 +41,9 @@ const promptCommand = async () => {
   return promptCommand()
 }
 
+/**
+ * PUBLISHER LOGGER
+ */
 const publisherListenStdEvents = async () => {
   await redis.subscribe(redisPathMaker('stderr'), msg => {
     console.log(msg)
@@ -47,17 +52,30 @@ const publisherListenStdEvents = async () => {
   await redis.subscribe(redisPathMaker('stdout'), msg => {
     console.log(msg)
   })
+
+  await redis.subscribe(redisPathMaker('cwd'), msg => {
+    console.log(chalk.cyan(`cwd: ${msg}`))
+  })
 }
 
+/**
+ * COMMAND LISTENER
+ */
 const listenForCommands = async () => {
   console.log(chalk.cyan('Listening for publisher commands...'))
 
   let cwd = process.cwd()
   await redis.subscribe(redisPathMaker('command'), command => {
+    if (command === CONSTANTS.list_command) {
+      redis.publisher.publish(redisPathMaker('list'), process.env.INSTANCE_NAME)
+      return
+    }
+
     if ((/^cd/g).test(command)) {
       const newCwd = path.join(cwd, command.replace(/cd /gi, ''))
 
       if (fs.existsSync(newCwd)) {
+        redis.publisher.publish(redisPathMaker('cwd'), newCwd)
         cwd = newCwd
         return
       }
